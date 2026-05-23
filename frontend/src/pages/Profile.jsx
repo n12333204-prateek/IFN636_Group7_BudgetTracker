@@ -6,15 +6,14 @@ import axiosInstance from '../axiosConfig';
 const Profile = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({
-    name: '', email: '', occupation: '', address: ''
-  });
-  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({ name: '', email: '', occupation: '', address: '' });
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [successMsg, setSuccessMsg] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     const fetchProfile = async () => {
-      setLoading(true);
       try {
         const response = await axiosInstance.get('/api/auth/profile', {
           headers: { Authorization: `Bearer ${user.token}` }
@@ -25,8 +24,8 @@ const Profile = () => {
           occupation: response.data.occupation || '',
           address: response.data.address || ''
         });
-      } catch (error) {
-        alert('Failed to load profile.');
+      } catch {
+        setError('Failed to load profile.');
       } finally {
         setLoading(false);
       }
@@ -37,13 +36,16 @@ const Profile = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
+    setError('');
+    setSuccessMsg('');
     try {
       await axiosInstance.put('/api/auth/profile', formData, {
         headers: { Authorization: `Bearer ${user.token}` }
       });
-      alert('Profile updated successfully!');
-    } catch (error) {
-      alert('Failed to update profile.');
+      setSuccessMsg('Profile updated successfully!');
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } catch {
+      setError('Failed to update profile. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -56,21 +58,35 @@ const Profile = () => {
     }
   };
 
-  if (loading) return <div className="text-center mt-20 text-gray-500">Loading profile...</div>;
-
+  // Generate initials for the avatar circle
   const initials = formData.name
     ? formData.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
     : 'U';
 
+  if (loading) return <div className="text-center mt-20 text-gray-400 text-lg">Loading profile...</div>;
+
   return (
-    <div className="container mx-auto p-6 max-w-2xl">
+    <div className="max-w-2xl mx-auto px-6 py-6">
       <h1 className="text-2xl font-bold text-gray-800 mb-6">My Profile</h1>
 
-      <div className="bg-white shadow rounded-lg overflow-hidden mb-6">
+      {successMsg && (
+        <div className="bg-green-50 border border-green-300 text-green-700 px-4 py-3 rounded-lg mb-4 text-sm font-medium">
+          {successMsg}
+        </div>
+      )}
+      {error && (
+        <div className="bg-red-50 border border-red-300 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">
+          {error}
+        </div>
+      )}
+
+      <div className="bg-white shadow-sm rounded-xl overflow-hidden mb-6">
+        {/* Avatar header */}
         <div className="p-6 flex items-center gap-4" style={{ backgroundColor: '#1E3A5F' }}>
-          <div className="w-16 h-16 rounded-full flex items-center justify-center
-            text-white text-2xl font-bold border-2 border-white"
-            style={{ backgroundColor: '#2563EB' }}>
+          <div
+            className="w-16 h-16 rounded-full flex items-center justify-center text-white text-2xl font-bold border-2 border-white"
+            style={{ backgroundColor: '#2563EB' }}
+          >
             {initials}
           </div>
           <div>
@@ -88,32 +104,36 @@ const Profile = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
               <input type="text" value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" />
+                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
               <input type="email" value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" />
+                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Occupation</label>
               <input type="text" placeholder="e.g. Software Engineer"
                 value={formData.occupation}
                 onChange={(e) => setFormData({ ...formData, occupation: e.target.value })}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" />
+                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
               <input type="text" placeholder="e.g. Brisbane, QLD"
                 value={formData.address}
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" />
+                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+              />
             </div>
           </div>
 
           <button type="submit" disabled={saving}
-            className="w-full text-white p-3 rounded-lg font-semibold hover:opacity-90"
+            className="w-full text-white p-3 rounded-lg font-semibold hover:opacity-90 transition"
             style={{ backgroundColor: '#1E3A5F' }}>
             {saving ? 'Saving...' : 'Update Profile'}
           </button>
@@ -121,8 +141,7 @@ const Profile = () => {
       </div>
 
       <button onClick={handleLogout}
-        className="w-full bg-red-50 text-red-600 border border-red-200 p-3 rounded-lg
-          font-semibold hover:bg-red-100 transition">
+        className="w-full bg-red-50 text-red-600 border border-red-200 p-3 rounded-lg font-semibold hover:bg-red-100 transition">
         Logout
       </button>
     </div>
