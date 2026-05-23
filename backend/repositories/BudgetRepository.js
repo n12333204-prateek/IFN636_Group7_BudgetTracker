@@ -1,29 +1,22 @@
-// Pattern 3: Repository - abstracts Budget data access from controllers
+// Pattern 3: Repository - extends BaseRepository (OOP inheritance)
+const BaseRepository = require('./BaseRepository');
 const Budget = require('../models/Budget');
 
-class BudgetRepository {
+class BudgetRepository extends BaseRepository {
+  constructor() {
+    super(Budget);
+  }
+
   findAllByUser(userId) {
-    return Budget.find({ userId });
+    return this.model.find({ userId });
   }
 
   findByUserAndCategory(userId, category) {
-    return Budget.findOne({ userId, category });
+    return this.model.findOne({ userId, category });
   }
 
   create(data) {
-    return Budget.create(data);
-  }
-
-  findById(id) {
-    return Budget.findById(id);
-  }
-
-  save(budget) {
-    return budget.save();
-  }
-
-  delete(budget) {
-    return budget.deleteOne();
+    return this.model.create(data);
   }
 }
 

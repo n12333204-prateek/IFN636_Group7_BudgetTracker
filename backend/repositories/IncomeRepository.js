@@ -1,25 +1,18 @@
-// Pattern 3: Repository - abstracts Income data access from controllers
+// Pattern 3: Repository - extends BaseRepository (OOP inheritance)
+const BaseRepository = require('./BaseRepository');
 const Income = require('../models/Income');
 
-class IncomeRepository {
+class IncomeRepository extends BaseRepository {
+  constructor() {
+    super(Income);
+  }
+
   findAllByUser(userId) {
-    return Income.find({ userId }).sort({ date: -1 });
+    return this.model.find({ userId }).sort({ date: -1 });
   }
 
   create(data) {
-    return Income.create(data);
-  }
-
-  findById(id) {
-    return Income.findById(id);
-  }
-
-  save(income) {
-    return income.save();
-  }
-
-  delete(income) {
-    return income.deleteOne();
+    return this.model.create(data);
   }
 }
 
