@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import axiosInstance from '../axiosConfig';
 import { useAuth } from '../context/AuthContext';
+import Pagination from '../components/Pagination';
 
 const today = new Date().toISOString().substring(0, 10);
+// Show 5 items per page so pagination is clearly visible
+const ITEMS_PER_PAGE = 3;
 
 const Expenses = () => {
   const { user } = useAuth();
@@ -15,11 +18,13 @@ const Expenses = () => {
   const [budgetAlert, setBudgetAlert] = useState(null);
   const [successMsg, setSuccessMsg] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
 
-  useEffect(() => {
-    fetchExpenses();
-    fetchBudgets();
-  }, []);
+  useEffect(() => { fetchExpenses(); fetchBudgets(); }, []);
+
+  // Go back to page 1 whenever the list length changes
+  useEffect(() => { setCurrentPage(1); }, [expenses.length]);
 
   const fetchExpenses = async () => {
     try {
@@ -29,6 +34,8 @@ const Expenses = () => {
       setExpenses(res.data);
     } catch {
       setError('Failed to load expenses.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -39,10 +46,10 @@ const Expenses = () => {
       });
       setBudgets(res.data);
     } catch {
-      // silently fail — category dropdown just won't show budget options
     }
   };
 
+  // Find the budget that matches the selected category to show remaining amount
   const getSelectedBudget = () => {
     const cat = useCustomCategory ? customCategory : formData.category;
     return budgets.find(b => b.category === cat);
@@ -79,6 +86,7 @@ const Expenses = () => {
           headers: { Authorization: `Bearer ${user.token}` }
         });
         setExpenses([res.data, ...expenses]);
+        // Show budget warning if returned from backend, otherwise show success
         if (res.data.budgetAlert) {
           setBudgetAlert(res.data.budgetAlert);
         } else {
@@ -129,7 +137,7 @@ const Expenses = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this expense?')) return;
+    if (!window.confirm('Delete this expense?')) return;
     try {
       await axiosInstance.delete(`/api/expenses/${id}`, {
         headers: { Authorization: `Bearer ${user.token}` }
@@ -145,8 +153,16 @@ const Expenses = () => {
   const totalAmount = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
   const selectedBudget = getSelectedBudget();
 
+  const totalPages = Math.ceil(expenses.length / ITEMS_PER_PAGE);
+  const paginatedExpenses = expenses.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
+  if (loading) return <div className="text-center mt-20 text-gray-400 text-lg">Loading...</div>;
+
   return (
-    <div className="container mx-auto p-6 max-w-4xl">
+    <div className="w-full max-w-screen-xl mx-auto px-8 py-6">
       <h1 className="text-2xl font-bold mb-6 text-gray-800">Expense Management</h1>
 
       {successMsg && (
@@ -155,6 +171,7 @@ const Expenses = () => {
         </div>
       )}
 
+      {/* Budget alert - shown when spending hits 80% or 100% of a category budget */}
       {budgetAlert && (
         <div className={`px-4 py-3 rounded-lg mb-4 border ${
           budgetAlert.type === 'exceeded'
@@ -180,20 +197,17 @@ const Expenses = () => {
         </div>
       )}
 
-      <div className="bg-white p-6 shadow rounded-lg mb-6">
+      {/* Add / Edit form */}
+      <div className="bg-white p-6 shadow-sm rounded-xl mb-6">
         <h2 className="text-lg font-bold mb-4 text-gray-700">
           {editingId ? 'Edit Expense' : 'Add New Expense'}
         </h2>
-
         <form onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>
               <input
-                type="number"
-                step="0.01"
-                min="0.01"
-                placeholder="0.00"
+                type="number" step="0.01" min="0.01" placeholder="0.00"
                 value={formData.amount}
                 onChange={e => setFormData({ ...formData, amount: e.target.value })}
                 className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
@@ -203,6 +217,7 @@ const Expenses = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+              {/* Show dropdown with budget categories if budgets exist */}
               {budgets.length > 0 && !useCustomCategory ? (
                 <select
                   value={formData.category}
@@ -221,30 +236,27 @@ const Expenses = () => {
                   {budgets.map(b => (
                     <option key={b._id} value={b.category}>{b.category}</option>
                   ))}
-                  <option value="__other__">Other (custom category)</option>
+                  <option value="__other__">Other (custom)</option>
                 </select>
               ) : (
                 <div>
                   <input
-                    type="text"
-                    placeholder="e.g. Food, Transport, Health"
+                    type="text" placeholder="e.g. Food, Transport, Health"
                     value={customCategory}
                     onChange={e => setCustomCategory(e.target.value)}
                     className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
                     required
                   />
                   {budgets.length > 0 && (
-                    <button
-                      type="button"
+                    <button type="button"
                       onClick={() => { setUseCustomCategory(false); setCustomCategory(''); }}
-                      className="text-xs text-blue-500 hover:underline mt-1"
-                    >
+                      className="text-xs text-blue-500 hover:underline mt-1">
                       ← Back to budget categories
                     </button>
                   )}
                 </div>
               )}
-
+              {/* Show remaining budget for selected category */}
               {selectedBudget && (
                 <p className={`text-xs mt-1 font-medium ${
                   (selectedBudget.spentAmount / selectedBudget.limitAmount) >= 1
@@ -262,10 +274,9 @@ const Expenses = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+              {/* max={today} prevents selecting future dates for expenses */}
               <input
-                type="date"
-                value={formData.date}
-                max={today}
+                type="date" value={formData.date} max={today}
                 onChange={e => setFormData({ ...formData, date: e.target.value })}
                 className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
                 required
@@ -277,8 +288,7 @@ const Expenses = () => {
                 Description <span className="text-gray-400 font-normal">(optional)</span>
               </label>
               <input
-                type="text"
-                placeholder="Add a note"
+                type="text" placeholder="Add a note"
                 value={formData.description}
                 onChange={e => setFormData({ ...formData, description: e.target.value })}
                 className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
@@ -287,18 +297,13 @@ const Expenses = () => {
           </div>
 
           <div className="flex gap-3">
-            <button
-              type="submit"
-              className="flex-1 bg-red-500 text-white p-3 rounded-lg font-semibold hover:bg-red-600 transition"
-            >
+            <button type="submit"
+              className="flex-1 bg-red-500 text-white p-3 rounded-lg font-semibold hover:bg-red-600 transition">
               {editingId ? 'Update Expense' : 'Add Expense'}
             </button>
             {editingId && (
-              <button
-                type="button"
-                onClick={handleCancel}
-                className="flex-1 bg-gray-400 text-white p-3 rounded-lg font-semibold hover:bg-gray-500 transition"
-              >
+              <button type="button" onClick={handleCancel}
+                className="flex-1 bg-gray-400 text-white p-3 rounded-lg font-semibold hover:bg-gray-500 transition">
                 Cancel
               </button>
             )}
@@ -306,46 +311,60 @@ const Expenses = () => {
         </form>
       </div>
 
-      <div className="bg-white p-4 shadow rounded-lg mb-4 flex justify-between items-center">
-        <span className="text-gray-600 font-medium">Total Expenses</span>
+      {/* Total bar */}
+      <div className="bg-white p-4 shadow-sm rounded-xl mb-4 flex justify-between items-center">
+        <span className="text-gray-600 font-medium">
+          Total Expenses
+          {expenses.length > 0 && (
+            <span className="text-gray-400 font-normal ml-2">({expenses.length} records)</span>
+          )}
+        </span>
         <span className="text-xl font-bold text-red-600">${totalAmount.toFixed(2)}</span>
       </div>
 
+      {/* Expense list - shows only current page items */}
       <div>
         {expenses.length === 0 && (
-          <div className="text-center py-12 text-gray-400">
+          <div className="text-center py-14 text-gray-400">
             <p className="text-lg mb-1">No expenses yet</p>
             <p className="text-sm">Add your first expense using the form above.</p>
           </div>
         )}
-        {expenses.map(expense => (
-          <div key={expense._id} className="bg-white p-4 shadow rounded-lg mb-3 flex justify-between items-center">
+
+        {paginatedExpenses.map(expense => (
+          <div key={expense._id}
+            className="bg-white p-4 shadow-sm rounded-xl mb-3 flex justify-between items-center">
             <div>
               <p className="font-semibold text-gray-800">
                 {expense.category}
                 <span className="text-red-600 ml-2">${Number(expense.amount).toFixed(2)}</span>
               </p>
-              <p className="text-sm text-gray-500">{new Date(expense.date).toLocaleDateString()}</p>
+              <p className="text-sm text-gray-500 mt-0.5">
+                {new Date(expense.date).toLocaleDateString()}
+              </p>
               {expense.description && (
                 <p className="text-sm text-gray-400 mt-1">{expense.description}</p>
               )}
             </div>
             <div className="flex gap-2">
-              <button
-                onClick={() => handleEdit(expense)}
-                className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 text-sm transition"
-              >
+              <button onClick={() => handleEdit(expense)}
+                className="bg-yellow-500 text-white px-3 py-1.5 rounded-lg hover:bg-yellow-600 text-sm font-medium transition">
                 Edit
               </button>
-              <button
-                onClick={() => handleDelete(expense._id)}
-                className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 text-sm transition"
-              >
+              <button onClick={() => handleDelete(expense._id)}
+                className="bg-red-500 text-white px-3 py-1.5 rounded-lg hover:bg-red-600 text-sm font-medium transition">
                 Delete
               </button>
             </div>
           </div>
         ))}
+
+        {/* Pagination - only renders when there is more than one page */}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </div>
   );
