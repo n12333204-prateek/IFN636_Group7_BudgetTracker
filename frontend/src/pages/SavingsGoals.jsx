@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import axiosInstance from '../axiosConfig';
 import { useAuth } from '../context/AuthContext';
+import Pagination from '../components/Pagination';
 
 const today = new Date().toISOString().substring(0, 10);
+const ITEMS_PER_PAGE = 3;
 
 const SavingsGoals = () => {
   const { user } = useAuth();
@@ -13,8 +15,11 @@ const SavingsGoals = () => {
   const [contributionAmount, setContributionAmount] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => { fetchGoals(); }, []);
+  useEffect(() => { setCurrentPage(1); }, [goals.length]);
 
   const fetchGoals = async () => {
     try {
@@ -24,6 +29,8 @@ const SavingsGoals = () => {
       setGoals(res.data);
     } catch {
       setError('Failed to load savings goals.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -75,7 +82,7 @@ const SavingsGoals = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this savings goal?')) return;
+    if (!window.confirm('Delete this savings goal?')) return;
     try {
       await axiosInstance.delete(`/api/savings/${id}`, {
         headers: { Authorization: `Bearer ${user.token}` }
@@ -102,8 +109,9 @@ const SavingsGoals = () => {
       setGoals(goals.map(g => g._id === goalId ? res.data : g));
       setContributingId(null);
       setContributionAmount('');
+      // Special message if goal is now 100% complete
       if (res.data.savedAmount >= res.data.targetAmount) {
-        showSuccess(`Goal "${res.data.goalName}" is now complete!`);
+        showSuccess(`🎉 Goal "${res.data.goalName}" is now complete!`);
       } else {
         showSuccess('Contribution added successfully!');
       }
@@ -115,8 +123,17 @@ const SavingsGoals = () => {
   const totalSaved = goals.reduce((sum, g) => sum + Number(g.savedAmount), 0);
   const totalTarget = goals.reduce((sum, g) => sum + Number(g.targetAmount), 0);
 
+  // Pagination
+  const totalPages = Math.ceil(goals.length / ITEMS_PER_PAGE);
+  const paginatedGoals = goals.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
+  if (loading) return <div className="text-center mt-20 text-gray-400 text-lg">Loading...</div>;
+
   return (
-    <div className="container mx-auto p-6 max-w-4xl">
+    <div className="w-full max-w-screen-xl mx-auto px-8 py-6">
       <h1 className="text-2xl font-bold mb-6 text-gray-800">Savings Goals</h1>
 
       {successMsg && (
@@ -130,13 +147,13 @@ const SavingsGoals = () => {
         </div>
       )}
 
-      <div className="bg-white p-6 shadow rounded-lg mb-6">
+      <div className="bg-white p-6 shadow-sm rounded-xl mb-6">
         <h2 className="text-lg font-bold mb-1 text-gray-700">
           {editingId ? 'Edit Goal' : 'Create New Goal'}
         </h2>
         {!editingId && (
-          <p className="text-sm text-gray-500 mb-4">
-            Set a savings target, track your progress, and add contributions over time.
+          <p className="text-sm text-gray-400 mb-4">
+            Set a target, track your progress, and add contributions over time.
           </p>
         )}
         <form onSubmit={handleSubmit}>
@@ -144,8 +161,7 @@ const SavingsGoals = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Goal Name</label>
               <input
-                type="text"
-                placeholder="e.g. Emergency Fund, Holiday, New Car"
+                type="text" placeholder="e.g. Emergency Fund, Holiday, New Laptop"
                 value={formData.goalName}
                 onChange={e => setFormData({ ...formData, goalName: e.target.value })}
                 className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
@@ -155,10 +171,7 @@ const SavingsGoals = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Target Amount ($)</label>
               <input
-                type="number"
-                step="0.01"
-                min="1"
-                placeholder="0.00"
+                type="number" step="0.01" min="1" placeholder="0.00"
                 value={formData.targetAmount}
                 onChange={e => setFormData({ ...formData, targetAmount: e.target.value })}
                 className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
@@ -167,10 +180,9 @@ const SavingsGoals = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Target Date</label>
+              {/* min={today} prevents setting a past date as the savings target */}
               <input
-                type="date"
-                value={formData.targetDate}
-                min={today}
+                type="date" value={formData.targetDate} min={today}
                 onChange={e => setFormData({ ...formData, targetDate: e.target.value })}
                 className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
                 required
@@ -181,8 +193,7 @@ const SavingsGoals = () => {
                 Notes <span className="text-gray-400 font-normal">(optional)</span>
               </label>
               <input
-                type="text"
-                placeholder="Why are you saving for this?"
+                type="text" placeholder="Why are you saving for this?"
                 value={formData.notes}
                 onChange={e => setFormData({ ...formData, notes: e.target.value })}
                 className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
@@ -205,7 +216,7 @@ const SavingsGoals = () => {
       </div>
 
       {goals.length > 0 && (
-        <div className="bg-white p-4 shadow rounded-lg mb-4 flex justify-between items-center">
+        <div className="bg-white p-4 shadow-sm rounded-xl mb-4 flex justify-between items-center">
           <span className="text-gray-600 font-medium">Total Saved</span>
           <span className="text-xl font-bold text-blue-600">
             ${totalSaved.toFixed(2)}{' '}
@@ -216,12 +227,14 @@ const SavingsGoals = () => {
 
       <div>
         {goals.length === 0 && (
-          <div className="text-center py-12 text-gray-400">
+          <div className="text-center py-14 text-gray-400">
             <p className="text-lg mb-1">No savings goals yet</p>
             <p className="text-sm">Create your first goal to start saving.</p>
           </div>
         )}
-        {goals.map(goal => {
+
+        {/* Render only current page goals */}
+        {paginatedGoals.map(goal => {
           const pct = goal.targetAmount > 0
             ? Math.min(100, Math.round((goal.savedAmount / goal.targetAmount) * 100))
             : 0;
@@ -230,14 +243,16 @@ const SavingsGoals = () => {
 
           return (
             <div key={goal._id}
-              className={`bg-white p-4 shadow rounded-lg mb-3 border-l-4 ${isComplete ? 'border-green-500' : 'border-blue-400'}`}>
+              className={`bg-white p-5 shadow-sm rounded-xl mb-3 border-l-4 ${
+                isComplete ? 'border-green-500' : 'border-blue-400'
+              }`}>
               <div className="flex justify-between items-start mb-3">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-gray-800">{goal.goalName}</p>
+                    <p className="font-semibold text-gray-800 text-base">{goal.goalName}</p>
                     {isComplete && (
                       <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-semibold">
-                        Complete
+                        Complete ✓
                       </span>
                     )}
                   </div>
@@ -261,50 +276,54 @@ const SavingsGoals = () => {
                       ${Math.max(0, goal.targetAmount - goal.savedAmount).toFixed(2)}
                     </span>
                   </p>
-                  {goal.notes && <p className="text-sm text-gray-400 mt-1 italic">{goal.notes}</p>}
+                  {goal.notes && (
+                    <p className="text-sm text-gray-400 mt-1 italic">{goal.notes}</p>
+                  )}
                 </div>
                 <div className="flex gap-2 ml-4 flex-wrap justify-end">
                   {!isComplete && (
                     <button
-                      onClick={() => { setContributingId(contributingId === goal._id ? null : goal._id); setContributionAmount(''); setError(''); }}
-                      className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 text-sm transition">
+                      onClick={() => {
+                        setContributingId(contributingId === goal._id ? null : goal._id);
+                        setContributionAmount('');
+                        setError('');
+                      }}
+                      className="bg-blue-500 text-white px-3 py-1.5 rounded-lg hover:bg-blue-600 text-sm font-medium transition">
                       + Add
                     </button>
                   )}
                   <button onClick={() => handleEdit(goal)}
-                    className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 text-sm transition">
+                    className="bg-yellow-500 text-white px-3 py-1.5 rounded-lg hover:bg-yellow-600 text-sm font-medium transition">
                     Edit
                   </button>
                   <button onClick={() => handleDelete(goal._id)}
-                    className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 text-sm transition">
+                    className="bg-red-500 text-white px-3 py-1.5 rounded-lg hover:bg-red-600 text-sm font-medium transition">
                     Delete
                   </button>
                 </div>
               </div>
 
-              <div className="w-full bg-gray-200 rounded-full h-2.5 mb-1">
+              <div className="w-full bg-gray-200 rounded-full h-3 mb-1">
                 <div
-                  className={`h-2.5 rounded-full transition-all ${isComplete ? 'bg-green-500' : 'bg-blue-500'}`}
+                  className={`h-3 rounded-full transition-all ${isComplete ? 'bg-green-500' : 'bg-blue-500'}`}
                   style={{ width: `${pct}%` }}
                 />
               </div>
               <p className="text-xs text-right text-gray-400 mb-2">{pct}% of goal reached</p>
 
+              {/* Inline contribution form - expands on clicking + Add */}
               {contributingId === goal._id && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-2">
-                  <p className="text-sm font-medium text-blue-800 mb-2">Add a contribution</p>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-2">
+                  <p className="text-sm font-semibold text-blue-800 mb-2">Add a contribution</p>
                   <div className="flex gap-2">
                     <input
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      placeholder="Amount ($)"
+                      type="number" step="0.01" min="0.01" placeholder="Amount ($)"
                       value={contributionAmount}
                       onChange={e => setContributionAmount(e.target.value)}
                       className="flex-1 p-2 border border-blue-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
                     />
                     <button onClick={() => handleContribute(goal._id)}
-                      className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition font-medium">
+                      className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition">
                       Save
                     </button>
                     <button onClick={() => { setContributingId(null); setContributionAmount(''); }}
@@ -317,6 +336,8 @@ const SavingsGoals = () => {
             </div>
           );
         })}
+
+        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
       </div>
     </div>
   );

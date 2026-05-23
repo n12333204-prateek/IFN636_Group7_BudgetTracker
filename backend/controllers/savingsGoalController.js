@@ -2,6 +2,7 @@ const SavingsGoal = require('../models/SavingsGoal');
 
 const getGoals = async (req, res) => {
   try {
+    // Sort by target date so closest deadlines appear first
     const goals = await SavingsGoal.find({ userId: req.user.id }).sort({ targetDate: 1 });
     res.json(goals);
   } catch (error) {
@@ -67,6 +68,7 @@ const addContribution = async (req, res) => {
       return res.status(400).json({ message: 'Please enter a valid contribution amount' });
     }
 
+    // Cap saved amount at target - cannot save more than the goal
     goal.savedAmount = Math.min(goal.targetAmount, goal.savedAmount + amount);
     const updated = await goal.save();
     res.json(updated);

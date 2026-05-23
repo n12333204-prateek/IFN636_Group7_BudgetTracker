@@ -3,6 +3,7 @@ const Budget = require('../models/Budget');
 
 const getExpenses = async (req, res) => {
   try {
+    // Return expenses sorted by newest date first
     const expenses = await Expense.find({ userId: req.user.id }).sort({ date: -1 });
     res.json(expenses);
   } catch (error) {
@@ -19,13 +20,16 @@ const createExpense = async (req, res) => {
 
     let budgetAlert = null;
 
+    // Find matching budget for this category and update spent amount
     const budget = await Budget.findOne({ userId: req.user.id, category });
     if (budget) {
       budget.spentAmount = budget.spentAmount + Number(amount);
       await budget.save();
 
+      // Calculate what percentage of the budget has been used
       const percentage = (budget.spentAmount / budget.limitAmount) * 100;
 
+      // Send alert if budget is exceeded or approaching limit (80%+)
       if (percentage >= 100) {
         budgetAlert = {
           type: 'exceeded',
@@ -43,8 +47,8 @@ const createExpense = async (req, res) => {
       }
     }
 
-    const expenseData = expense.toObject();
-    res.status(201).json({ ...expenseData, budgetAlert });
+    // Spread expense fields and include budget alert info in one response
+    res.status(201).json({ ...expense.toObject(), budgetAlert });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -68,12 +72,14 @@ const updateExpense = async (req, res) => {
 
     const updated = await expense.save();
 
+    // Remove old amount from the previous category budget
     const oldBudget = await Budget.findOne({ userId: req.user.id, category: oldCategory });
     if (oldBudget) {
       oldBudget.spentAmount = Math.max(0, oldBudget.spentAmount - Number(oldAmount));
       await oldBudget.save();
     }
 
+    // Add new amount to the updated category budget
     const newBudget = await Budget.findOne({ userId: req.user.id, category: expense.category });
     if (newBudget) {
       newBudget.spentAmount = newBudget.spentAmount + Number(expense.amount);
@@ -93,6 +99,7 @@ const deleteExpense = async (req, res) => {
     if (expense.userId.toString() !== req.user.id)
       return res.status(401).json({ message: 'Not authorized' });
 
+    // Subtract this expense amount from the category budget
     const budget = await Budget.findOne({ userId: req.user.id, category: expense.category });
     if (budget) {
       budget.spentAmount = Math.max(0, budget.spentAmount - Number(expense.amount));

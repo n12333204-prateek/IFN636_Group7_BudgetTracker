@@ -5,6 +5,12 @@ const incomeSchema = new mongoose.Schema({
   amount: { type: Number, required: true },
   source: { type: String, required: true },
   date: { type: Date, required: true },
+  // Income recurrence
+  frequency: {
+    type: String,
+    enum: ['One-time', 'Weekly', 'Fortnightly', 'Monthly'],
+    default: 'One-time'
+  },
   description: { type: String }
 }, { timestamps: true });
 
