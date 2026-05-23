@@ -1,6 +1,7 @@
 // Pattern 3: Repository - controllers use repos, not models directly
+// Pattern 5: Facade - budget work goes through BudgetService
 const expenseRepo = require('../repositories/ExpenseRepository');
-const budgetRepo = require('../repositories/BudgetRepository');
+const budgetService = require('../services/BudgetService');
 
 const getExpenses = async (req, res) => {
   try {
@@ -18,31 +19,9 @@ const createExpense = async (req, res) => {
       userId: req.user.id, amount, category, date, description
     });
 
-    let budgetAlert = null;
-
-    const budget = await budgetRepo.findByUserAndCategory(req.user.id, category);
-    if (budget) {
-      budget.spentAmount = budget.spentAmount + Number(amount);
-      await budgetRepo.save(budget);
-
-      const percentage = (budget.spentAmount / budget.limitAmount) * 100;
-
-      if (percentage >= 100) {
-        budgetAlert = {
-          type: 'exceeded',
-          category,
-          percentage: Math.round(percentage),
-          message: `You have exceeded your ${category} budget! ($${budget.spentAmount.toFixed(2)} spent of $${budget.limitAmount.toFixed(2)} limit)`
-        };
-      } else if (percentage >= 80) {
-        budgetAlert = {
-          type: 'warning',
-          category,
-          percentage: Math.round(percentage),
-          message: `You have used ${Math.round(percentage)}% of your ${category} budget. Only $${(budget.limitAmount - budget.spentAmount).toFixed(2)} remaining.`
-        };
-      }
-    }
+    // facade updates the budget and notifies the observers, then we build the alert
+    const budget = await budgetService.applyExpense(req.user.id, category, amount);
+    const budgetAlert = budgetService.buildAlert(budget, category);
 
     res.status(201).json({ ...expense.toObject(), budgetAlert });
   } catch (error) {
@@ -68,17 +47,10 @@ const updateExpense = async (req, res) => {
 
     const updated = await expenseRepo.save(expense);
 
-    const oldBudget = await budgetRepo.findByUserAndCategory(req.user.id, oldCategory);
-    if (oldBudget) {
-      oldBudget.spentAmount = Math.max(0, oldBudget.spentAmount - Number(oldAmount));
-      await budgetRepo.save(oldBudget);
-    }
-
-    const newBudget = await budgetRepo.findByUserAndCategory(req.user.id, expense.category);
-    if (newBudget) {
-      newBudget.spentAmount = newBudget.spentAmount + Number(expense.amount);
-      await budgetRepo.save(newBudget);
-    }
+    // move the spent amount from the old budget to the new one
+    await budgetService.moveExpense(
+      req.user.id, oldCategory, oldAmount, updated.category, updated.amount
+    );
 
     res.json(updated);
   } catch (error) {
@@ -93,13 +65,9 @@ const deleteExpense = async (req, res) => {
     if (expense.userId.toString() !== req.user.id)
       return res.status(401).json({ message: 'Not authorized' });
 
-    const budget = await budgetRepo.findByUserAndCategory(req.user.id, expense.category);
-    if (budget) {
-      budget.spentAmount = Math.max(0, budget.spentAmount - Number(expense.amount));
-      await budgetRepo.save(budget);
-    }
-
+    await budgetService.revertExpense(req.user.id, expense.category, expense.amount);
     await expenseRepo.delete(expense);
+
     res.json({ message: 'Expense deleted' });
   } catch (error) {
     res.status(500).json({ message: error.message });

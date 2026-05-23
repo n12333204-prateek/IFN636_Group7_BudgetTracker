@@ -4,6 +4,11 @@ const cors = require('cors');
 const db = require('./config/db'); // Pattern 1: Singleton
 const { loggerMiddleware } = require('./middleware/loggerMiddleware'); // Pattern 2: Middleware
 
+// Pattern 4: Observer - hook the budget observers up at startup
+const budgetSubject = require('./observers/BudgetSubject');
+const consoleAlertObserver = require('./observers/ConsoleAlertObserver');
+const alertHistoryObserver = require('./observers/AlertHistoryObserver');
+
 dotenv.config();
 
 const app = express();
@@ -11,6 +16,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(loggerMiddleware); // log every request
+
+budgetSubject.subscribe(consoleAlertObserver);
+budgetSubject.subscribe(alertHistoryObserver);
 
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/expenses', require('./routes/expenseRoutes'));
