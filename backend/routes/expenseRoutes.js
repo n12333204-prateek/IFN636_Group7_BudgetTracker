@@ -4,8 +4,7 @@ const { protect } = require('../middleware/authMiddleware');
 const { validateExpense } = require('../middleware/validateEntry');
 const router = express.Router();
 
-// Pattern 5: Chain of Responsibility — request flows through:
-//   loggerMiddleware (server.js) → protect → validateExpense → controller
+// Chain: loggerMiddleware -> protect -> validateExpense -> controller
 router.get('/', protect, getExpenses);
 router.post('/', protect, validateExpense, createExpense);
 router.put('/:id', protect, validateExpense, updateExpense);

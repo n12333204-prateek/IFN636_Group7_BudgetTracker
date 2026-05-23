@@ -1,9 +1,10 @@
-const Expense = require('../models/Expense');
-const Budget = require('../models/Budget');
+// Pattern 3: Repository - controllers use repos, not models directly
+const expenseRepo = require('../repositories/ExpenseRepository');
+const budgetRepo = require('../repositories/BudgetRepository');
 
 const getExpenses = async (req, res) => {
   try {
-    const expenses = await Expense.find({ userId: req.user.id });
+    const expenses = await expenseRepo.findAllByUser(req.user.id);
     res.json(expenses);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -13,17 +14,37 @@ const getExpenses = async (req, res) => {
 const createExpense = async (req, res) => {
   const { amount, category, date, description } = req.body;
   try {
-    const expense = await Expense.create({
+    const expense = await expenseRepo.create({
       userId: req.user.id, amount, category, date, description
     });
 
-    const budget = await Budget.findOne({ userId: req.user.id, category });
+    let budgetAlert = null;
+
+    const budget = await budgetRepo.findByUserAndCategory(req.user.id, category);
     if (budget) {
       budget.spentAmount = budget.spentAmount + Number(amount);
-      await budget.save();
+      await budgetRepo.save(budget);
+
+      const percentage = (budget.spentAmount / budget.limitAmount) * 100;
+
+      if (percentage >= 100) {
+        budgetAlert = {
+          type: 'exceeded',
+          category,
+          percentage: Math.round(percentage),
+          message: `You have exceeded your ${category} budget! ($${budget.spentAmount.toFixed(2)} spent of $${budget.limitAmount.toFixed(2)} limit)`
+        };
+      } else if (percentage >= 80) {
+        budgetAlert = {
+          type: 'warning',
+          category,
+          percentage: Math.round(percentage),
+          message: `You have used ${Math.round(percentage)}% of your ${category} budget. Only $${(budget.limitAmount - budget.spentAmount).toFixed(2)} remaining.`
+        };
+      }
     }
 
-    res.status(201).json(expense);
+    res.status(201).json({ ...expense.toObject(), budgetAlert });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -31,7 +52,7 @@ const createExpense = async (req, res) => {
 
 const updateExpense = async (req, res) => {
   try {
-    const expense = await Expense.findById(req.params.id);
+    const expense = await expenseRepo.findById(req.params.id);
     if (!expense) return res.status(404).json({ message: 'Expense not found' });
     if (expense.userId.toString() !== req.user.id)
       return res.status(401).json({ message: 'Not authorized' });
@@ -44,18 +65,19 @@ const updateExpense = async (req, res) => {
     expense.category = category || expense.category;
     expense.date = date || expense.date;
     expense.description = description || expense.description;
-    const updated = await expense.save();
 
-    const oldBudget = await Budget.findOne({ userId: req.user.id, category: oldCategory });
+    const updated = await expenseRepo.save(expense);
+
+    const oldBudget = await budgetRepo.findByUserAndCategory(req.user.id, oldCategory);
     if (oldBudget) {
       oldBudget.spentAmount = Math.max(0, oldBudget.spentAmount - Number(oldAmount));
-      await oldBudget.save();
+      await budgetRepo.save(oldBudget);
     }
 
-    const newBudget = await Budget.findOne({ userId: req.user.id, category: expense.category });
+    const newBudget = await budgetRepo.findByUserAndCategory(req.user.id, expense.category);
     if (newBudget) {
       newBudget.spentAmount = newBudget.spentAmount + Number(expense.amount);
-      await newBudget.save();
+      await budgetRepo.save(newBudget);
     }
 
     res.json(updated);
@@ -66,18 +88,18 @@ const updateExpense = async (req, res) => {
 
 const deleteExpense = async (req, res) => {
   try {
-    const expense = await Expense.findById(req.params.id);
+    const expense = await expenseRepo.findById(req.params.id);
     if (!expense) return res.status(404).json({ message: 'Expense not found' });
     if (expense.userId.toString() !== req.user.id)
       return res.status(401).json({ message: 'Not authorized' });
 
-    const budget = await Budget.findOne({ userId: req.user.id, category: expense.category });
+    const budget = await budgetRepo.findByUserAndCategory(req.user.id, expense.category);
     if (budget) {
       budget.spentAmount = Math.max(0, budget.spentAmount - Number(expense.amount));
-      await budget.save();
+      await budgetRepo.save(budget);
     }
 
-    await expense.deleteOne();
+    await expenseRepo.delete(expense);
     res.json({ message: 'Expense deleted' });
   } catch (error) {
     res.status(500).json({ message: error.message });

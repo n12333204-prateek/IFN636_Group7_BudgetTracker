@@ -1,8 +1,9 @@
-const Budget = require('../models/Budget');
+// Pattern 3: Repository - controllers use repos, not models directly
+const budgetRepo = require('../repositories/BudgetRepository');
 
 const getBudgets = async (req, res) => {
   try {
-    const budgets = await Budget.find({ userId: req.user.id });
+    const budgets = await budgetRepo.findAllByUser(req.user.id);
     res.json(budgets);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -12,7 +13,7 @@ const getBudgets = async (req, res) => {
 const createBudget = async (req, res) => {
   const { category, limitAmount, timePeriod, startDate } = req.body;
   try {
-    const budget = await Budget.create({
+    const budget = await budgetRepo.create({
       userId: req.user.id, category, limitAmount, timePeriod, startDate
     });
     res.status(201).json(budget);
@@ -23,7 +24,7 @@ const createBudget = async (req, res) => {
 
 const updateBudget = async (req, res) => {
   try {
-    const budget = await Budget.findById(req.params.id);
+    const budget = await budgetRepo.findById(req.params.id);
     if (!budget) return res.status(404).json({ message: 'Budget not found' });
     if (budget.userId.toString() !== req.user.id)
       return res.status(401).json({ message: 'Not authorized' });
@@ -35,7 +36,7 @@ const updateBudget = async (req, res) => {
     budget.timePeriod = timePeriod || budget.timePeriod;
     budget.startDate = startDate || budget.startDate;
 
-    const updated = await budget.save();
+    const updated = await budgetRepo.save(budget);
     res.json(updated);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -44,12 +45,12 @@ const updateBudget = async (req, res) => {
 
 const deleteBudget = async (req, res) => {
   try {
-    const budget = await Budget.findById(req.params.id);
+    const budget = await budgetRepo.findById(req.params.id);
     if (!budget) return res.status(404).json({ message: 'Budget not found' });
     if (budget.userId.toString() !== req.user.id)
       return res.status(401).json({ message: 'Not authorized' });
 
-    await budget.deleteOne();
+    await budgetRepo.delete(budget);
     res.json({ message: 'Budget deleted' });
   } catch (error) {
     res.status(500).json({ message: error.message });
