@@ -14,6 +14,7 @@ app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/expenses', require('./routes/expenseRoutes'));
 app.use('/api/income', require('./routes/incomeRoutes'));
 app.use('/api/budgets', require('./routes/budgetRoutes'));
+app.use('/api/savings', require('./routes/savingsGoalRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 
 if (require.main === module) {
