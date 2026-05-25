@@ -1,17 +1,28 @@
-// config/db.js
-const mongoose = require("mongoose");
+// Pattern 1: Singleton - only one MongoDB connection instance exists across the app
+const mongoose = require('mongoose');
+const dns = require('dns');
 
-// Set strictQuery explicitly to suppress the warning
-//mongoose.set('strictQuery', true);
+dns.setServers(['8.8.8.8', '8.8.4.4']);
 
-const connectDB = async () => {
-  try {
-    await mongoose.connect(process.env.MONGO_URI);  // Remove deprecated options
-    console.log("MongoDB connected successfully");
-  } catch (error) {
-    console.error("MongoDB connection error:", error.message);
-    process.exit(1);
+class DatabaseConnection {
+  constructor() {
+    if (DatabaseConnection._instance) return DatabaseConnection._instance;
+    this.connection = null;
+    DatabaseConnection._instance = this;
   }
-};
 
-module.exports = connectDB;
+  async connect() {
+    if (this.connection) return this.connection;
+    try {
+      this.connection = await mongoose.connect(process.env.MONGO_URI);
+      console.log('MongoDB connected successfully');
+      return this.connection;
+    } catch (error) {
+      console.error('MongoDB connection error:', error.message);
+      process.exit(1);
+    }
+  }
+}
+
+const dbInstance = new DatabaseConnection();
+module.exports = dbInstance;
