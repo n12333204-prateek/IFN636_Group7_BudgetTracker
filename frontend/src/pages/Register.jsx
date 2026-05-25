@@ -14,8 +14,8 @@ const Register = () => {
     setLoading(true);
     try {
       await axiosInstance.post('/api/auth/register', formData);
-      // Go to login after successful registration
-      navigate('/login');
+      // Go to login and let it know the account was just created
+      navigate('/login', { state: { registered: true } });
     } catch (err) {
       const msg = err.response?.data?.message || 'Registration failed. Please try again.';
       setError(msg);

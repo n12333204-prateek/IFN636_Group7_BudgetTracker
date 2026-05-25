@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import axiosInstance from '../axiosConfig';
 
 const Login = () => {
@@ -9,6 +9,10 @@ const Login = () => {
   const [error, setError] = useState('');
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Register page sends this flag after a successful sign up
+  const justRegistered = location.state?.registered;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -44,6 +48,13 @@ const Login = () => {
       <div className="bg-white w-full max-w-md rounded-xl shadow-sm border border-gray-200 px-8 py-8">
         <h2 className="text-2xl font-bold text-gray-800 mb-1">Welcome Back</h2>
         <p className="text-gray-400 text-sm mb-6">Sign in to your account to continue</p>
+
+        {/* Success note shown right after a new account is created */}
+        {justRegistered && (
+          <div className="bg-green-50 border border-green-300 text-green-700 px-4 py-3 rounded-lg mb-5 text-sm font-medium">
+            Account created successfully. Please log in to continue.
+          </div>
+        )}
 
         {/* Deactivated account gets orange, all other errors get red */}
         {error && (
