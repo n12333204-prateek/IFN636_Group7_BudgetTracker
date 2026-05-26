@@ -6,7 +6,7 @@ A full-stack personal finance management application that helps users track expe
 
 ## Live Application
 
-**Public URL:** http://54.206.146.40
+**Public URL:** http://15.135.198.102
 
 | Role  | Email                     | Password   |
 |-------|---------------------------|------------|
