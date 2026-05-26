@@ -20,6 +20,11 @@ app.use(loggerMiddleware); // log every request
 budgetSubject.subscribe(consoleAlertObserver);
 budgetSubject.subscribe(alertHistoryObserver);
 
+// Health check endpoint - used to confirm which server responded
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', server: process.env.SERVER_NAME || 'server-1' });
+});
+
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/expenses', require('./routes/expenseRoutes'));
 app.use('/api/income', require('./routes/incomeRoutes'));
