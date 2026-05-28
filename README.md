@@ -18,40 +18,44 @@ Register a new account to access the user dashboard, or use the admin credential
 
 ## Tech Stack
 
-| Layer       | Technology                          |
-|-------------|-----------------------------------  |
-| Frontend    | React.js                            |
-| Backend     | Node.js                             |
-| Database    | MongoDB Atlas                       |
-| Auth        | JSON Web Tokens (JWT)               |
-| Web Server  | Nginx                               |
-| Process     | pm2                                 |
-| CI/CD       | GitHub Actions (self-hosted runner) |
-| Cloud       | AWS EC2 (Ubuntu 24.04, t3.medium)   |
+| Layer         | Technology                          |
+|---------------|-------------------------------------|
+| Frontend      | React.js, Tailwind CSS              |
+| Backend       | Node.js                             |
+| Database      | MongoDB Atlas                       |
+| Auth          | JSON Web Tokens (JWT)               |
+| Web Server    | Nginx                               |
+| Process       | pm2                                 |
+| CI/CD         | GitHub Actions (self-hosted runner) |
+| Cloud         | AWS EC2 (Ubuntu 24.04, t3.medium)   |
+| Load Balancer | AWS Application Load Balancer       |
+| Testing       | Mocha                               |
 
 ---
 
 ## Project Structure
-
-```
 BudgetTracker/
-|──.github/
-|    └── workflows/
-|        └── ci.yml        # GitHub Actions pipeline
-|── backend/
-    |── config/            # Database config file
-|   |── controllers/       # Route logic for each feature
-|   |── models/            # Mongoose schemas
-|   |── routes/            # Express route definitions
-|   |── middleware/        # JWT auth middleware
-|   |── test/              # Mocha test files
-|   |── server.js          # App entry point
-|── frontend/
-    |── src/
-    |   |── components/    # Reusable UI components
-    |   |── pages/         # Page-level components
-    |   |── axiosConfig.jsx # Axios base URL config
-```
+|-- .github/
+|    +-- workflows/
+|        +-- ci.yml            # GitHub Actions pipeline
+|-- backend/
+|   |-- config/                # Singleton database connection
+|   |-- controllers/           # Route logic for each feature
+|   |-- middleware/            # JWT auth and logger middleware
+|   |-- models/                # Mongoose schemas
+|   |-- observers/             # Budget alert observers
+|   |-- repositories/          # Repository pattern classes
+|   |-- routes/                # Express route definitions
+|   |-- services/              # Facade service layer
+|   |-- test/                  # Mocha test files
+|   +-- server.js              # App entry point
+|-- frontend/
+|   +-- src/
+|       |-- components/        # Reusable UI components
+|       |-- context/           # Auth context
+|       |-- pages/             # Page-level components
+|       +-- axiosConfig.jsx    # Axios base URL config
++-- postman/                   # Postman collection and environment
 
 ---
 
@@ -69,8 +73,8 @@ Make sure you have the following installed:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/n12333204-prateek/BudgetTracker.git
-cd BudgetTracker
+git clone https://github.com/n12333204-prateek/IFN636_Group7_BudgetTracker.git
+cd IFN636_Group7_BudgetTracker
 ```
 
 ### 2. Set Up the Backend
@@ -80,12 +84,10 @@ cd backend
 ```
 
 Create a `.env` file in the `backend/` folder:
-
-```
 MONGO_URI=your_mongodb_connection_string
 JWT_SECRET=your_jwt_secret_key
 PORT=5001
-```
+SERVER_NAME=server-1
 
 Install dependencies and start the server:
 
@@ -116,6 +118,12 @@ yarn start
 
 The frontend will run on `http://localhost:3000`
 
+To point the frontend at your local backend, update the baseURL in `frontend/src/axiosConfig.jsx`:
+
+```js
+baseURL: 'http://localhost:5001'
+```
+
 ### 5. Log In
 
 | Role  | Email                   | Password   |
@@ -128,7 +136,7 @@ Or register a new user account from the app.
 
 ## Running Tests
 
-Tests are written using Mocha and cover CRUD operations for the Expenses feature.
+Tests are written using Mocha and cover all backend functionality across 8 test files: expenses, income, budgets, savings goals, admin, profile, functional flows, and error handling.
 
 ```bash
 cd backend
@@ -156,15 +164,12 @@ The self-hosted runner is installed directly on the EC2 instance.
 
 ### GitHub Secrets Used
 
-| Secret       | Description                          |
-|--------------|--------------------------------------|
-| MONGO_URI    | MongoDB Atlas connection string      |
-| JWT_SECRET   | Secret key for JWT token signing     |
-| PORT         | Backend port (5001)                  |
-| PROD         | Full `.env` content for production   |
-| EC2_HOST     | EC2 public IP address                |
-| EC2_USERNAME | SSH username (ubuntu)                |
-| EC2_SSH_KEY  | Private key for EC2 SSH access       |
+| Secret     | Description                        |
+|------------|------------------------------------|
+| MONGO_URI  | MongoDB Atlas connection string    |
+| JWT_SECRET | Secret key for JWT token signing   |
+| PORT       | Backend port (5001)                |
+| PROD       | Full `.env` content for production |
 
 ---
 
@@ -175,7 +180,7 @@ The application is hosted on an AWS EC2 instance with the following setup:
 - **Instance type:** t3.medium
 - **OS:** Ubuntu 24.04 LTS
 - **Region:** Asia Pacific - Sydney (ap-southeast-2)
-- **Public IP:** 54.206.146.40 
+- **Public IP:** 15.135.198.102
 
 Nginx acts as a reverse proxy, routing all browser traffic on port 80 to the React frontend and all `/api/` calls to the Node.js backend on port 5001.
 
@@ -183,24 +188,81 @@ pm2 keeps both the frontend and backend running as background processes, and aut
 
 ---
 
+## Load Balancing
+
+The application is deployed across two EC2 instances behind an AWS Application Load Balancer for high availability.
+
+| Component      | Detail                                                   |
+|----------------|----------------------------------------------------------|
+| EC2 Instance 1 | http://15.135.198.102                                    |
+| EC2 Instance 2 | http://13.54.12.249                                      |
+| Target Group   | BTKBudget, HTTP port 80                                  |
+| ALB DNS        | BTKBalancer-717050348.ap-southeast-2.elb.amazonaws.com   |
+| Region         | ap-southeast-2 (Sydney)                                  |
+
+Traffic distribution is confirmed using the health check endpoint:
+
+```bash
+curl http://BTKBalancer-717050348.ap-southeast-2.elb.amazonaws.com/api/health
+```
+
+Responses alternate between `server-1` and `server-2` confirming round-robin distribution.
+
+---
+
+## Design Patterns
+
+Five design patterns are implemented in the backend:
+
+| Pattern                             | File                                        |
+|-------------------------------------|---------------------------------------------|
+| Singleton                           | `backend/config/db.js`                      |
+| Middleware (Chain of Responsibility)| `backend/middleware/loggerMiddleware.js`     |
+| Repository                          | `backend/repositories/BaseRepository.js`   |
+| Observer                            | `backend/observers/BudgetSubject.js`        |
+| Facade                              | `backend/services/BudgetService.js`         |
+
+OOP principles (encapsulation, abstraction, inheritance, polymorphism) are demonstrated through the same pattern code. `BaseRepository` is the parent class extended by `ExpenseRepository`, `IncomeRepository`, and `BudgetRepository`.
+
+---
+
 ## Features
 
-- User registration and login 
+- User registration and login
 - Role-based access control (Admin and User roles)
-- Track and manage personal expenses
-- Track and manage income entries
-- Set and monitor budgets
+- Track and manage personal expenses, linked automatically to budget categories
+- Track and manage income entries with frequency classification
+- Set and monitor spending budgets with real-time alerts at 80% and 100% of the limit
+- Savings goals with contribution tracking and progress bar
+- Dashboard with financial summary, budget health overview, and savings preview
 - Admin dashboard to manage all users
+- Pagination on all list pages
 - Fully automated deployment on every push to main
 
 ---
 
 ## GitHub Repository
 
-**Repo:** https://github.com/n12333204-prateek/BudgetTracker
+**Repo:** https://github.com/n12333204-prateek/IFN636_Group7_BudgetTracker
 
-- `main` branch - production-ready code
-- Feature branches - one branch per feature, merged via pull requests
-- JIRA keys included in commit messages (project key: PBT)
+| Branch                                  | Description                             |
+|-----------------------------------------|-----------------------------------------|
+| `main`                                  | Production, auto-deploys via CI/CD      |
+| `feature/budget-alerts`                 | Budget alert feature                    |
+| `feature/savings-goals`                 | Savings goals feature                   |
+| `feature/app-improvements`              | UI/UX improvements                      |
+| `feature/design-patterns-final`         | Design patterns and OOPS implementation |
+| `feature/api-testing-postman-clean`     | Postman API testing collection          |
+| `feature/functional-testing`            | Functional test cases                   |
+| `docs/update-readme`                    | README update                           |
 
 ---
+
+## Team
+
+| Name                     | Student ID   |
+|--------------------------|--------------|
+| Prateek Shrishail Uppin  | n12333204    |
+| Nithish Purushothaman    | n12325031    |
+| Karol Bhandari           | n12568929    |
+| Thrishika Rajappaji      | n12523020    |
