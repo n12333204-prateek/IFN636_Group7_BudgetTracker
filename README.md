@@ -34,28 +34,30 @@ Register a new account to access the user dashboard, or use the admin credential
 ---
 
 ## Project Structure
+```
 BudgetTracker/
 |-- .github/
-|    +-- workflows/
-|        +-- ci.yml            # GitHub Actions pipeline
+|   +-- workflows/
+|       +-- ci.yml
 |-- backend/
-|   |-- config/                # Singleton database connection
-|   |-- controllers/           # Route logic for each feature
-|   |-- middleware/            # JWT auth and logger middleware
-|   |-- models/                # Mongoose schemas
-|   |-- observers/             # Budget alert observers
-|   |-- repositories/          # Repository pattern classes
-|   |-- routes/                # Express route definitions
-|   |-- services/              # Facade service layer
-|   |-- test/                  # Mocha test files
-|   +-- server.js              # App entry point
+|   |-- config/
+|   |-- controllers/
+|   |-- middleware/
+|   |-- models/
+|   |-- observers/
+|   |-- repositories/
+|   |-- routes/
+|   |-- services/
+|   |-- test/
+|   +-- server.js
 |-- frontend/
 |   +-- src/
-|       |-- components/        # Reusable UI components
-|       |-- context/           # Auth context
-|       |-- pages/             # Page-level components
-|       +-- axiosConfig.jsx    # Axios base URL config
-+-- postman/                   # Postman collection and environment
+|       |-- components/
+|       |-- context/
+|       |-- pages/
+|       +-- axiosConfig.jsx
++-- postman/
+```
 
 ---
 
